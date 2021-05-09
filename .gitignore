@@ -1,8 +1,6 @@
-.vscode/
-.DS_Store
 py3env
 *.pyc
 __pycache__
 staticfiles
 db.sqlite3
-settings.py
+rhy3h_stocksite/settings.py
