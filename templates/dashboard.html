@@ -1,0 +1,648 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block mystyle %}
+<style>
+    body.dragging, body.dragging * {
+        cursor: move !important;
+    }
+  
+    .dragged {
+        position: absolute;
+        opacity: 0.5;
+        z-index: 2000;
+    }
+  
+    ol.example li.placeholder {
+        position: relative;
+        /** More li styles **/
+    }
+    ol.example li.placeholder:before {
+        position: absolute;
+        /** Define arrowhead **/
+    }
+</style>
+{% endblock mystyle %}
+
+{% block content %}
+<div class="container-fluid">
+    {% if group_id %}
+    
+    <!-- Page Heading -->
+    <div class="d-sm-flex align-items-center justify-content-between">
+        <h1 class="h3 mb-0 text-gray-800 mb-4">{{ group.Groupname }}
+            <a class="btn btn-primary btn-circle" href="#EditGroupModal" data-toggle="modal" data-target="#EditGroupModal">
+                <i class="far fa-edit"></i>
+            </a>
+        </h1>
+        <div class="row mb-4">
+            <a class="btn btn-primary btn-circle" onclick="download_all_table();">
+                <i class="fas fa-file-download"></i>
+            </a>
+            <script>
+                function download_all_table(){
+                    begin_date = document.getElementById("begin_date").value;
+                    end_date = document.getElementById("end_date").value;
+                    download_table('positive_table', begin_date, end_date);
+                    download_table('negative_table', begin_date, end_date);
+                }
+                function download_table(table_id, begin_date, end_date) {
+                    if(table_id == 'positive_table')
+                        table_name = '買入';
+                    else
+                        table_name = '賣出';
+                    let rows = document.querySelectorAll('table#' + table_id +  ' tr');
+                    let csv = [];
+                    for (let i = 0; i < rows.length; i++) {
+                        let row = [], cols = rows[i].querySelectorAll('th');
+                        for (let j = 0; j < 3; j++) {
+                            row.push('"' + cols[j].innerText + '"');
+                        }
+                        csv.push(row.join(','));
+                    }
+                    let csv_string = csv.join('\n');
+                    // Download it
+                    let filename = '{{ group.Groupname }}' + ' ' + table_name + ' ' + begin_date + ' ' + end_date + '.csv';
+                    let link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.setAttribute('target', '_blank');
+                    link.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent("\uFEFF" + csv_string));
+                    link.setAttribute('download', filename);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            </script>
+        </div>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-left-primary shadow h-100 py-2">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">起始日</div>
+                                <input class="form-control" id="begin_date" type="date" value="{{ select_begin_date }}" min="2020-07-07" max="{{ today_date }}">
+                            </div>
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">結束日</div>
+                                <input class="form-control" id="end_date" type="date" value="{{ select_end_date }}" min="2020-07-07" max="{{ today_date }}">
+                            </div>
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">間隔</div>
+                                <select id="interval_month" class="form-select" aria-label="Default select example">
+                                    <option selected>請選擇</option>
+                                    {% for interval in interval_month %}
+                                    {% if select_interval_month == forloop.counter0 %}
+                                    <option value="{{ forloop.counter0 }}" selected>{{ interval }}</option>
+                                    {% else %}
+                                    <option value="{{ forloop.counter0 }}">{{ interval }}</option>
+                                    {% endif %}
+                                    {% endfor %}
+                                  </select>
+                            </div>
+                            
+                            <div class="col-auto">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">搜尋</div>
+                                <button class="btn btn-primary" type="button" id="search">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row mb-4">
+        <div class="col-xl-2 col-lg-4 col-md-6 col-sm-8 col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">券商清單
+                        <a class="btn btn-primary btn-circle btn-sm" id="" href="#AddBrokerModal" data-toggle="modal" data-target="#AddBrokerModal">
+                            <i class="fas fa-plus"></i>
+                        </a>
+                        <a class="btn btn-primary btn-circle btn-sm float-right" id="save_list">
+                            <i class="fas fa-save"></i>
+                        </a>
+                    </h6>
+                </div>
+                
+                <div class="card-body">
+                    <ul class="list-group list-group-sortable " id="broker_list">
+                    {% for branch in html_broker_list %}
+                    <li class="list-group-item" value="{{ branch.id }}" id="{{ branch.id }}">{{ branch.name }}
+                        <span class="float-right">
+                            <a class="btn btn-danger btn-circle btn-sm" onclick="remove_li(this)">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </span>
+                    </li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div id="spinner-box" class="spinner-border d-none m-5" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-6 col-lg-12 col-md-12 col-sm-12 col-12 mb-4">
+            <!-- Content Row -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">買進</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="positive_table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>股票代碼</th>
+                                    <th>名稱</th>
+                                    <th>差額(仟元)</th>
+                                    <th>買進</th>
+                                    <th>賣出</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-6 col-lg-12 col-md-12 col-sm-12 col-12 mb-4">
+            <!-- Content Row -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">賣出</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="negative_table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>股票代碼</th>
+                                    <th>名稱</th>
+                                    <th>差額(仟元)</th>
+                                    <th>買進</th>
+                                    <th>賣出</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>    
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+<!-- /.container-fluid -->
+{% endblock content %}
+                
+{% block modal %}
+<!-- Add Broker Modal-->
+<div class="modal fade" id="AddBrokerModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增券商</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="needs-validation" method="POST" action="/add_broker/query?group_id={{group.id}}" id="add_broker_form" novalidate>
+                {% csrf_token %}
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <div class="input-group mb-3">
+                                <input id="input_broker" type="text" class="form-control" placeholder="券商" aria-label="Stock" aria-describedby="basic-addon1">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="input-group mb-3">
+                                <input id="input_branch" type="text" class="form-control" placeholder="分部" aria-label="Stock" aria-describedby="basic-addon1">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <select class="form-control" id="select_broker" name="select_broker" onchange="generate_branch_list()">
+                                <script>
+                                    generate_broker_list();
+                                </script>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <select class="form-control" id="select_branch" name="select_branch">
+                                <script>
+                                    generate_branch_list();
+                                </script>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-lg btn-block" type="submit" id="add_broker_submut" hidden>Continue to checkout</button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary" onclick="document.getElementById('add_broker_submut').click()">確認</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Group Modal-->
+<div class="modal fade" id="CreateGroupModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增群組</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="needs-validation" method="POST" action="/create_group/" novalidate>
+                {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="new_group_name">群組名稱</label>
+                        <input type="text" class="form-control" id="new_group_name" name="new_group_name" placeholder="群組名稱" required>
+                        <div class="invalid-feedback">
+                            請輸入名稱
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-lg btn-block" type="submit" id="add_group_submut" hidden>Continue to checkout</button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary" onclick="document.getElementById('add_group_submut').click()">確認</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Del Group Modal-->
+<div class="modal fade" id="EditGroupModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯群組</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form class="needs-validation" method="POST" action="" novalidate>
+                    {% csrf_token %}
+                    <input class="form-control" type="text" placeholder="還沒做">
+                    <button class="btn btn-primary btn-lg btn-block" type="submit" id="edit_submit" hidden>Continue to checkout</button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <a class="mr-auto" href="/del_group/query?group_id={{ group.id }}">
+                    <button type="button" class="btn btn-danger">刪除</button>
+                </a>
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('edit_submit').click()">確認</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Del Group Modal-->
+<div class="modal fade" id="DelGroupModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">刪除群組</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <h5 id="del_group_text" class="modal-title">確認刪除 {{ group.Groupname }} ?</h5>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">取消</button>
+                <a href="/del_group/query?group_id={{ group.id }}">
+                    <button type="button" class="btn btn-primary">確認</button>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Good Info Modal-->
+<div class="modal fade" id="SearchWantGoo" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="GoodInfoText" class="modal-title">玩股網</h5>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <table id="GoodInfoTable" class="table">
+                    <thead>
+                        <tr>
+                            <th>日期</th>
+                            <th>外資</th>
+                            <th>投信</th>
+                            <th>自營商</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock modal %}
+
+{% block js %}
+<script>
+    $('.list-group-sortable').sortable({
+        placeholderClass: 'list-group-item'
+    });
+
+    $("#input_broker").on("keydown",function search(e) {
+        if(e.keyCode == 13) {
+            input_broker_text = document.getElementById('input_broker').value
+            if(input_broker_text.length > 0){
+                select_broker = document.getElementById("select_broker");
+                
+                for (i = 0; i < select_broker.length; i++) {
+                    if(select_broker.options[i].text.search(input_broker_text) >= 0){
+                        document.getElementById("select_broker").selectedIndex = i;
+                        generate_branch_list()
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    
+    $("#input_branch").on("keydown",function search(e) {
+        if(e.keyCode == 13) {
+            input_branch_text = document.getElementById('input_branch').value
+            if(input_branch_text.length > 0){
+                select_branch = document.getElementById("select_branch");
+                
+                for (i = 0; i < select_branch.length; i++) {
+                    
+                    if(select_branch.options[i].text.search(input_branch_text) >= 0){
+                        document.getElementById("select_branch").selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    
+    $('#add_broker_form').on('keyup keypress', function(e) {
+        keyCode = e.keyCode || e.which;
+        if (keyCode === 13) { 
+            e.preventDefault();
+            return false;
+        }
+    });
+    Date.prototype.addDays = function(days) {
+        var dat = new Date(this.valueOf());
+        dat.setDate(dat.getDate() + days);
+        return dat
+    }
+    $("#save_list").click(function() {
+        href = location.href;
+		if(href.indexOf('?') != -1)
+		{
+			ary1 = href.split('?');
+			ary2 = ary1[1].split('&');
+			ary3 = ary2[0].split('=');
+			group_id = ary3[1];
+		}
+        data = {
+            'group_id': group_id
+        }
+        $('#broker_list li.list-group-item').each(function (i) {
+            index = $(this).index();
+            value = $(this).attr('value');
+            data[index] = value
+        });
+        
+        $.ajax({
+            url: '/dashboard/update',
+            data: data,
+            dataType: 'json',
+            success: function (data) {
+                alert("Save Success!");
+            }
+        });
+    });
+
+    function SearchWantGoo(stock_id){
+        console.log(stock_id)
+        $.ajax({
+            url: '/apis/wantgoo/query',
+            data: {
+                "stock_id": stock_id
+            },
+            dataType: 'json',
+            success: function (data) {
+                $("#GoodInfoTable tbody").empty();
+
+                let buy_Foreign = -1,
+                    sell_Foreign = -1,
+                    buy_ING = -1,
+                    sell_ING = -1,
+                    buy_Dealer = -1,
+                    sell_Dealer = -1;
+                
+                for(let i = 0; i < data.length; i++){
+                    if(buy_Foreign == -1 && data[i].sumForeign <= 0){
+                        buy_Foreign = i;
+                    }
+                    if(sell_Foreign == -1 && data[i].sumForeign >= 0){
+                        sell_Foreign = i;
+                    }
+                    if(buy_ING == -1 && data[i].sumING <= 0){
+                        buy_ING = i;
+                    }
+                    if(sell_ING == -1 && data[i].sumING >= 0){
+                        sell_ING = i;
+                    }
+                    if(buy_Dealer == -1 && data[i].sumDealer <= 0){
+                        buy_Dealer = i;
+                    }
+                    if(sell_Dealer == -1 && data[i].sumDealer >= 0){
+                        sell_Dealer = i;
+                    }
+                    
+                    text =
+                        "<tr>" + 
+                        "<th>" + data[i].date + "</th>" + 
+                        "<th>" + data[i].sumForeign + "</th>" + 
+                        "<th>" + data[i].sumING + "</th>" + 
+                        "<th>" + data[i].sumDealer + "</th>" + 
+                    "</tr>";
+                    
+                    $("#GoodInfoTable tbody").append(
+                        text
+                    );
+                }
+                if(buy_Foreign > sell_Foreign)
+                    Foreign = buy_Foreign;
+                else
+                    Foreign = -sell_Foreign;
+                
+                if(Foreign == 0 && data[0].sumForeign != 0)
+                    Foreign = 10;
+
+                if(buy_ING > sell_ING)
+                    ING = buy_ING;
+                else
+                    ING = -sell_ING;
+                if(ING == 0 && data[0].sumING != 0)
+                    ING = 10;
+                
+                if(buy_Dealer > sell_Dealer)
+                    Dealer = buy_Dealer;
+                else
+                    Dealer = -sell_Dealer;
+                if(Dealer == 0 && data[0].sumDealer != 0)
+                    Dealer = 10;
+                text =
+                "<tr>" + 
+                    "<th>" + "天數" + "</th>" + 
+                    "<th>" + Foreign + " 天" + "</th>" + 
+                    "<th>" + ING + " 天"+ "</th>" + 
+                    "<th>" + Dealer + " 天"+ "</th>" + 
+                "</tr>";
+                $('#GoodInfoTable tbody').prepend(text);
+                
+                $("#GoodInfoTable th").each(function () 
+                {
+                    if( Number($(this).text()) > 0){
+                        $(this).css("color", "red");
+                    }
+                    else if(Number($(this).text()) < 0){
+                        $(this).css("color", "green");
+                    }
+                });
+                $("#GoodInfoText").text(stock_id)
+                $('#SearchWantGoo').modal('show')
+            }
+        });
+    }
+
+    $("#search").click(function() {
+        $('#spinner-box').removeClass("d-none");
+        href = location.href;
+		if(href.indexOf('?') != -1)
+		{
+			ary1 = href.split('?');
+			ary2 = ary1[1].split('&');
+			ary3 = ary2[0].split('=');
+			group_id = ary3[1];
+		}
+        begin_date = new Date(document.getElementById("begin_date").value);
+        end_date = new Date(document.getElementById("end_date").value);
+        interval_month = "None";
+        if(document.getElementById("interval_month").selectedIndex > 0){
+            interval_month = document.getElementById("interval_month").value;
+            begin_date = end_date.addDays(-7);
+            document.getElementById("begin_date").value = begin_date.toISOString().slice(0, 10)
+        }
+        else{
+            if(end_date < begin_date){
+                document.getElementById("begin_date").value = end_date.toISOString().slice(0, 10)
+                document.getElementById("end_date").value = begin_date.toISOString().slice(0, 10)
+                
+                temp = begin_date
+                begin_date = end_date
+                end_date = temp
+            }
+        }
+        begin_date = begin_date.toISOString().slice(0, 10);
+        end_date = end_date.toISOString().slice(0, 10);
+
+        $.ajax({
+            url: '/apis/fubon/query',
+            data: {
+                'begin_date': begin_date,
+                'end_date': end_date,
+                'group_id': group_id
+            },
+            dataType: 'json',
+            success: function (data) {
+                $('#spinner-box').addClass("d-none");
+
+                function make_table(table_id, data){
+                    $(table_id).empty();
+                    console.log(data);
+                    data.forEach(stock => {
+                        stock_id = "<th><a href='javascript:SearchWantGoo(" + "\"" + `${stock.id}` + "\"" + ")'>" + `${stock.id}` + "</a>" + "</th>";
+                        stock_name = "<th>" + stock.name + "</th>";
+                        stock_diff = "<th>" + Number(stock.diff).toLocaleString("en") + "</th>";
+                        stock_buy_in = "<th>";
+                        if(stock.buy_in != null){
+                            stock.buy_in.forEach(element => {
+                                stock_buy_in += element + '<br>';
+                            });
+                        }
+                        stock_buy_in += "</th>";
+                        stock_sell_out = "<th>";
+                        if(stock.sell_out != null){
+                            stock.sell_out.forEach(element => {
+                                stock_sell_out += element + '<br>';
+                            });
+                        }
+                        stock_sell_out += "</th>";
+                        $(table_id).append(
+                            "<tr>" + 
+                                stock_id + 
+                                stock_name + 
+                                stock_diff + 
+                                stock_buy_in + 
+                                stock_sell_out + 
+                            "</tr>"
+                        );
+                    });
+                }
+                
+                make_table('#positive_table tbody', data.positive);
+                make_table('#negative_table tbody', data.negative);
+            }
+        });
+    });
+    function import_list(group_id){
+        console.log(import_list)
+        //window.location.href = "/dashboard/import/query?group_id=" + group_id;
+    }
+    function export_list(group_id){
+        window.location.href = "/dashboard/export/query?group_id=" + group_id;
+    }
+    function remove_li(obj){
+        obj.closest("li").remove();
+    }
+    function pass_broker(broker_id, broker_name){
+        document.getElementById("del_broker_text").innerHTML="確認刪除 " + broker_name + " ?";
+	}
+</script>
+
+<!-- Custom scripts for all pages-->
+<script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/js/sb-admin-2.min.js" integrity="sha256-x30wE2bWDCVXT8XYe7BKz47qJWk3M6JNp7PpwqjtxvA=" crossorigin="anonymous"></script>
+
+
+{% endblock js %}

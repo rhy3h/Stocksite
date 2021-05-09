@@ -1,0 +1,9 @@
+Django==2.2.3
+dj-database-url==0.5.0
+dj-static==0.0.6
+gunicorn==19.9.0
+static3==0.6.1
+psycopg2-binary==2.8.6
+requests==2.24.0
+beautifulsoup4==4.9.3
+whitenoise==5.2.0

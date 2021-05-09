@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+
+    <input type="text" required="" name="username" maxlength="150" id="id_username" autofocus="">
+    <div id="spinner-box">
+        <div class="spinner-border" role="status"></div>
+    </div>
+    <div class="row">
+        <div class="col-xl-6 col-lg-12 col-md-12 col-sm-12 col-12 mb-4">
+            <!-- Content Row -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">買進</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="positive_table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>股票代碼</th>
+                                    <th>名稱</th>
+                                    <th>買進金額</th>
+                                    <th>賣出金額</th>
+                                    <th>差額(仟元)</th>
+                                    <th>券商</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-6 col-lg-12 col-md-12 col-sm-12 col-12 mb-4">
+            <!-- Content Row -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">賣出</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" id="negative_table" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>股票代碼</th>
+                                    <th>名稱</th>
+                                    <th>買進金額</th>
+                                    <th>賣出金額</th>
+                                    <th>差額(仟元)</th>
+                                    <th>券商</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /.container-fluid -->
+{% endblock content %}
+
+{% block js %}
+<script>
+$("#id_username").change(function () {
+      var username = $(this).val();
+
+      
+
+    });
+</script>
+
+<!-- Custom scripts for all pages-->
+<script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/js/sb-admin-2.min.js" integrity="sha256-x30wE2bWDCVXT8XYe7BKz47qJWk3M6JNp7PpwqjtxvA=" crossorigin="anonymous"></script>
+
+{% endblock js %}
